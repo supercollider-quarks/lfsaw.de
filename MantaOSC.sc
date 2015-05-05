@@ -162,7 +162,14 @@ padMappingTable_{|table|
 	// table -- array of indices to which each pad links to.
 	padMappingTable = table;
 	inverseMappingTable = (table.maxItem+1).collect{|idx|
-		table.detectAll({|val| val == idx})
+		var res = Array.new;
+//		table.detectAll({|val| val == idx});
+		table.do {|elem, i|
+				(elem == idx).if{
+					res = res.add(i)
+			}
+		};
+		res;
 	};
 
 }
