@@ -1,0 +1,98 @@
+TITLE:: PhasorTJ
+summary:: Phasor with tape jitter
+categories:: UGens>Buffer, UGens>Triggers
+related:: Classes/Phasor, Classes/LFSaw, Classes/BufRd
+
+DESCRIPTION::
+
+Emulates various types of tape jitter, primarily for reading/writing buffers with link::Classes/BufRd:: resp. link::Classes/BufWr::.
+
+CLASSMETHODS::
+
+PRIVATE:: new1, phaseEngine, jitterEngine, initClass
+
+METHOD:: ar, kr
+argument:: freq
+frequency of phase
+argument:: end
+end value
+argument:: jitter
+jitter amount
+argument:: jitterFreq
+jitter frequency
+argument:: jitterType
+jitter type, one of
+list::
+##0 code::\step, \hold:: no interpolation between steps (code::LFNoiseDNoise0::)
+##1 code::\lin, \linear:: linear interpolation (code::LFDNoise1::)
+##2 code::\cub, \cubed:: cubic interpolation (code::LFDNoise3::)
+##  code::\sin, \sine:: regular sine wave (code::SinOsc::)
+::
+
+argument:: phaseType
+phase type, one of
+
+list::
+##0 code::\saw:: sawtooth shape (code::LFSaw::)
+##1 code::\tri:: tri shape (code::LFTri::)
+##2 code::\sin:: sine shape (code::SineOsc::)
+::
+
+EXAMPLES::
+sine example
+
+code::
+(
+Ndef(\a).addSpec(
+	\freq, [0, 200],
+	\jitter, [0, 1], // relative to cycles
+	\jFreq, [0, 50],
+	\jType, [0, 2, \lin, 1, 1],
+	\pType, [0, 2, \lin, 1, 1]
+);
+Ndef(\a, {|freq|
+
+	[SinOsc.ar(0,
+		PhasorTJ.ar(freq, 2pi, \jitter.kr(1), \jFreq.kr(1), \sine, \pType.kr(0))
+	),
+	SinOsc.ar(freq)]
+})
+)
+
+Ndef(\a).edit
+::
+
+buffer example
+
+code::
+q = ();
+q.buf = Buffer.read(s, Platform.resourceDir +/+ "sounds/a11wlk01.wav");
+// reference
+q.buf.play
+
+(
+Ndef(\a).addSpec(
+	\freq, [0, 2],
+	\jitter, [0, 0.1],
+	\jFreq, [0, 50],
+	\jType, [0, 2, \lin, 1, 1],
+	\pType, [0, 2, \lin, 1, 1]
+);
+Ndef(\a, {|freq|
+
+	var buf = q.buf;
+	var jType = \sine;
+	BufRd.ar(
+		numChannels: q.buf.numChannels,
+		bufnum: buf,
+		phase:
+		PhasorTJ.ar(freq * BufDur.ir(buf).reciprocal, BufFrames.ir(buf), [\jitter.kr(0), 0], \jFreq.kr(1), jType, \pType.kr(0)),
+		loop: 1,
+		interpolation: 2
+	)
+
+})
+)
+
+Ndef(\a).edit
+::
