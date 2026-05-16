@@ -1,0 +1,6 @@
+INSTANCEMETHODS::
+
+
+method:: pbcopy
+
+Copies the code::String:: to the OS pasteboard using the cli program code::pbcopy::. Currently OSX-only.

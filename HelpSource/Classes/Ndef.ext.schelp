@@ -1,0 +1,21 @@
+INSTANCEMETHODS::
+
+
+method:: stateCS
+compileString representing the current state of the Ndef
+code::
+Ndef(\a).set(\a, 2145, \b, 1.1234); // an ndef with some values set
+Ndef(\a).stateCS;
+// -> Ndef('a').set('a', 2145, 'b', 1.1234);
+::
+returns:: the string
+
+
+method:: pbcopyState
+copy the state to the OS pasteboard
+code::
+Ndef(\a).set(\a, 2145, \b, 1.1234); // an ndef with some values set
+Ndef(\a).stateCS;
+// -> Ndef('a').set('a', 2145, 'b', 1.1234);
+::
+
