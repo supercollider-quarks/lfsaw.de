@@ -1,0 +1,246 @@
+TITLE:: NPVoicerSwitcher
+summary:: Manages a pool of NPVoicer objects with atomic swap between current, saved, and released roles
+categories:: Control, Live Coding
+related:: Classes/Ndef
+
+DESCRIPTION::
+
+NPVoicerSwitcher maintains a pool of link::Classes/NPVoicer:: objects organised into three roles:
+
+list::
+## strong::current:: — one active voicer that receives new notes and parameter changes.
+## strong::saved:: — an array of code::numSaves:: voicers that have been stepped down from the current role and are still audible.
+## strong::released:: — an array of code::numSaves:: voicers that are fading out (or silent), ready to be recycled.
+::
+
+The core operation is link::#-swapCurrentToSaved::, which rotates the three roles atomically: 
+the current voicer moves to the chosen saved slot, the previous saved voicer begins fading out and moves to the matching released slot, 
+and the previous released voicer becomes the new current.
+
+All link::Classes/Ndef:: proxies are created automatically in link::#*new:: and are named with an optional prefix followed by an index starting at 0.
+
+CLASSMETHODS::
+
+METHOD:: new
+Create a new NPVoicerSwitcher.
+
+argument:: numSaves
+Number of saved (and released) voicer slots. Default: code::3::.
+
+argument:: voicerClass
+The voicer class to instantiate for each slot. Default: code::NPVoicer::.
+
+argument:: prefix
+A link::Classes/String:: prepended to the link::Classes/Ndef:: name of each internal voicer proxy. Default: code::""::.
+
+returns:: An NPVoicerSwitcher instance.
+
+INSTANCEMETHODS::
+
+METHOD:: current
+returns:: The voicer currently in the active role.
+
+METHOD:: saved
+returns:: An link::Classes/Array:: of code::numSaves:: voicers in the saved role.
+
+METHOD:: released
+returns:: An link::Classes/Array:: of code::numSaves:: voicers in the released (fading-out) role.
+
+METHOD:: allVoicers
+returns:: All managed voicers as a flat link::Classes/Array::: code::[current] ++ saved ++ released::.
+
+METHOD:: swapAction
+A link::Classes/Function:: that is called after every successful link::#-swapCurrentToSaved:: call. The switcher and the index of the saved slot involved in the swap are passed as arguments. Default: code::nil::.
+
+code::
+a.swapAction = { |sw, idx| 
+    "Swapped current to saved slot %".format(idx).postln;
+};
+::
+
+METHOD:: swapCurrentToSaved
+Atomically rotate the three roles for a given slot index.
+
+Steps performed:
+numberedlist::
+## Call code::releaseAll(fadeTime):: on the voicer currently in code::saved[idx]::.
+## Move that voicer to code::released[idx]::.
+## Move the current voicer to code::saved[idx]::.
+## Promote the voicer previously in code::released[idx]:: to current.
+## Call link::#-swapAction::.
+::
+
+argument:: idx
+Zero-based index into the saved/released arrays (code::0 :: to code::numSaves - 1::).
+
+argument:: fadeTime
+Fade duration in seconds applied when releasing the outgoing saved voicer. Default: code::5::.
+
+returns:: The receiver.
+
+
+SUBSECTION:: Sound-related methods
+
+METHOD:: prime
+Load a sound definition into the voicers. The call is forwarded to link::Classes/NPVoicer#-prime::.
+
+argument:: obj
+The sound object to prime (e.g. a SynthDef name symbol).
+
+argument:: useSpawn
+Boolean — passed through to code::NPVoicer::. Default: code::false::.
+
+argument:: which
+Optional symbol restricting which role receives the prime call:
+list::
+## code::nil:: (default) — prime all voicers.
+## code::\current:: — prime only the current voicer.
+## code::\saved:: — prime only the saved voicers.
+## code::\released:: — prime only the released voicers.
+::
+
+
+
+METHOD:: play
+Forward a code::play:: call to every managed voicer.
+
+argument:: outs
+Output bus number or link::Classes/Array:: of bus numbers (wrapped if shorter than the voicer count).
+
+argument:: numChannels
+Passed through to code::NPVoicer::. Default: code::nil::.
+
+argument:: group
+Passed through to code::NPVoicer::. Default: code::nil::.
+
+argument:: multi
+Passed through to code::NPVoicer::. Default: code::false::.
+
+argument:: vol
+Passed through to code::NPVoicer::. Default: code::nil::.
+
+argument:: fadeTime
+Passed through to code::NPVoicer::. Default: code::nil::.
+
+argument:: addAction
+Passed through to code::NPVoicer::. Default: code::nil::.
+
+METHOD:: stop
+Call code::stop(fadeTime):: on every managed voicer.
+
+argument:: fadeTime
+Fade duration in seconds. Default: code::5::.
+
+METHOD:: releaseAll
+Call code::releaseAll(fadeTime):: on every managed voicer.
+
+argument:: fadeTime
+Fade duration in seconds. Default: code::5::.
+
+
+SUBSECTION:: Utility methods
+
+
+METHOD:: numSaves
+returns:: The number of saved (and released) slots.
+
+METHOD:: voicerClass
+returns:: The voicer class used when creating internal voicer objects.
+
+METHOD:: prefix
+returns:: The string prefix used for internal link::Classes/Ndef:: names.
+
+
+EXAMPLES::
+
+All examples assume the following setup:
+
+code::
+(
+// SynthDef used by all voicers
+SynthDef(\subtractive, { |out = 0, freq = 440, lpFreq = 1000, amp = 0.1, pan = 0, gate = 1|
+    var sig  = RLPF.ar(Pulse.ar(freq), lpFreq, 0.1);
+    var env  = Env.asr(0.01, 1, 0.1).kr(doneAction: 2, gate: gate);
+	
+	sig = sig * env * amp;
+	sig = Pan2.ar(sig, pan);
+    Out.ar(out, sig);
+}).add;
+)
+
+// Create the switcher: 1 current + 3 saved + 3 released slots (7 voicers total)
+q = ();
+q.sw = NPVoicerSwitcher(3, NPVoicer);
+
+// Prime all slots with the same SynthDef and start monitoring
+q.sw.prime(\subtractive);
+q.sw.play;
+::
+
+subsection:: first swap
+
+code::
+// Play a note on the current voicer
+q.sw.current.put(48, [\freq, 48.midicps]);
+
+// normal setting of local parameters...
+q.sw.current.setAt(48, \pan, -0.5);
+q.sw.current.setAt(48, \pan, 0.5);
+
+// ... as well as global parameters
+q.sw.current.set(\lpFreq, 500);
+
+
+// Swap: current -> saved[2], old saved[2] fades out -> released[2],
+//       old released[2] becomes the new current
+q.sw.swapCurrentToSaved(2, fadeTime: 2);
+
+// add a note to new current with same ID 
+// global parameter set before does not affect it
+q.sw.current.put(48, [\freq, 48.midicps]);
+
+
+// Set lpFreq globally on current voicer...
+q.sw.current.set(\lpFreq, 4250)
+
+
+// ... local setting only affects current voicer
+q.sw.current.setAt(48, \pan, -0.5);
+q.sw.current.setAt(48, \freq, 48.midicps - 0.2); // slight freq offset
+::
+
+subsection:: Using swapAction to print current settings of swapped voicers
+
+
+code::
+q.sw.swapAction = { |sw, idx|
+    var currentLpFreq = sw.current.proxy.get(\lpFreq);
+    var savedLpFreq = sw.saved[idx].proxy.get(\lpFreq);
+    "Swapped current to saved slot %".format(idx).postln;
+    "  New current lpFreq: %".format(currentLpFreq).postln;
+    "  New saved[%] lpFreq: %".format(idx, savedLpFreq).postln;
+};
+
+q.sw.swapCurrentToSaved(0, fadeTime: 3);
+
+
+q.sw.current.set(\lpFreq, 5000);
+q.sw.swapCurrentToSaved(1, fadeTime: 3);
+::
+
+subsection:: Inspect the voicer pool
+
+code::
+q.sw.allVoicers.do { |v| v.proxy.postln };
+
+q.sw.current.postln;
+q.sw.saved.postln;
+q.sw.released.postln;
+::
+
+subsection:: Clean up
+
+code::
+q.sw.releaseAll(fadeTime: 4);
+q.sw.stop;
+::
