@@ -47,13 +47,22 @@ METHOD:: released
 returns:: An link::Classes/Array:: of code::numSaves:: voicers in the released (fading-out) role.
 
 METHOD:: allVoicers
-returns:: All managed voicers as a flat link::Classes/Array::: code::[current] ++ saved ++ released::.
+returns:: All managed voicers as a flat link::Classes/Array:::. The order is always [current, saved..., released...].
 
 METHOD:: swapAction
-A link::Classes/Function:: that is called after every successful link::#-swapCurrentToSaved:: call. The switcher and the index of the saved slot involved in the swap are passed as arguments. Default: code::nil::.
+A link::Classes/Function:: that is called after every successful link::#-swapCurrentToSaved:: call. 
+Passed arguments are:
+list::
+## sw — the NPVoicerSwitcher instance performing the swap.
+## idx — the index of the saved/released slot involved in the swap.
+## current — the new current voicer after the swap.
+## saved — the new saved voicer in the swapped slot after the swap.
+## released — the new released voicer in the swapped slot after the swap.
+::
+Default: code::nil::.
 
 code::
-a.swapAction = { |sw, idx| 
+a.swapAction = { |sw, idx, current, saved, released| 
     "Swapped current to saved slot %".format(idx).postln;
 };
 ::
@@ -78,6 +87,27 @@ Fade duration in seconds applied when releasing the outgoing saved voicer. Defau
 
 returns:: The receiver.
 
+METHOD:: releaseAction
+A link::Classes/Function:: that is called after every successful link::#-releaseSaved:: call. 
+Passed arguments are:
+list::
+## sw — the NPVoicerSwitcher instance performing the release.
+## idx — the index of the saved slot being released.
+## voicer — the voicer being released.
+::
+Default: code::nil::.
+
+METHOD:: releaseSaved
+Release a saved voicer by index, not moving it to the released role. 
+This can be used to free up saved slots without affecting the current/released rotation.
+
+Steps performed:
+numberedlist::
+## Call code::releaseAll(fadeTime):: on the voicer currently in code::saved[idx]::.
+## Call link::#-releaseAction::.
+::
+argument:: idx
+index of the saved slot to release.
 
 SUBSECTION:: Sound-related methods
 

@@ -17,6 +17,7 @@ NPVoicerSwitcher {
     var <prefix;
 
     var <>swapAction;
+    var <>releaseAction;
 
     *new { |numSaves = 3, voicerClass (NPVoicer), prefix|
         ^super.new.init(numSaves, voicerClass, prefix)
@@ -55,7 +56,12 @@ NPVoicerSwitcher {
     }
 
     allVoicers {
+        // array is always sorted [current, saved..., released...]
          ^[current] ++ saved ++ released
+    }
+
+    allProxies {
+        ^this.allVoicers.collect { |voicer| voicer.proxy }
     }
 
     swapCurrentToSaved { |idx, fadeTime = 5|
@@ -71,7 +77,7 @@ NPVoicerSwitcher {
         saved[idx] = oldCurrent;
         current = oldReleased;
 
-        swapAction.value(this, idx);
+        swapAction.value(this, idx, current, oldCurrent, oldSaved);
         ^this
     }
 
@@ -91,6 +97,14 @@ NPVoicerSwitcher {
         this.allVoicers.do {|voicer|
             voicer.stop(fadeTime);
         };
+    }
+
+    releaseSaved { |idx, fadeTime = 5|
+        var voicer = saved[idx];
+        voicer.notNil.if({
+            voicer.releaseAll(fadeTime);
+        });
+        releaseAction.value(this, idx, voicer);
     }
 
     releaseAll { |fadeTime = 5|
